@@ -7087,7 +7087,6 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "hostname",
- "lazy_static",
  "lettre",
  "oauth2",
  "ollama-rs",
