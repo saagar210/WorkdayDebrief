@@ -5,6 +5,7 @@ use lettre::{Message, SmtpTransport, Transport};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SmtpConfig {
     pub host: String,
     pub port: u16,

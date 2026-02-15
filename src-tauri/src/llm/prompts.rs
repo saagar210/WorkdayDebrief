@@ -2,11 +2,7 @@ use crate::aggregation::AggregatedData;
 use crate::commands::SummaryInput;
 
 /// Build a prompt for the LLM based on aggregated data and tone
-pub fn build_prompt(
-    data: &AggregatedData,
-    user_fields: &SummaryInput,
-    tone: &str,
-) -> String {
+pub fn build_prompt(data: &AggregatedData, user_fields: &SummaryInput, tone: &str) -> String {
     let template = get_template(tone);
 
     // Build context from aggregated data
@@ -41,7 +37,10 @@ pub fn build_prompt(
 
     // Replace placeholders in template
     template
-        .replace("{{tickets_closed_count}}", &tickets_closed_count.to_string())
+        .replace(
+            "{{tickets_closed_count}}",
+            &tickets_closed_count.to_string(),
+        )
         .replace("{{tickets_closed_list}}", &tickets_closed_list)
         .replace(
             "{{tickets_in_progress_count}}",

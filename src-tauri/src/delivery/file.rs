@@ -4,7 +4,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileConfig {
+    #[serde(alias = "directory", alias = "directoryPath", alias = "directory_path")]
     pub directory_path: String,
 }
 
@@ -46,4 +48,21 @@ pub fn write_markdown(summary: &str, config: &FileConfig, date: &str) -> Result<
     })?;
 
     Ok(file_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FileConfig;
+
+    #[test]
+    fn file_config_accepts_directory_aliases() {
+        let with_directory: FileConfig = serde_json::from_str(r#"{"directory":"/tmp/out"}"#)
+            .expect("directory alias should deserialize");
+        assert_eq!(with_directory.directory_path, "/tmp/out");
+
+        let with_directory_path: FileConfig =
+            serde_json::from_str(r#"{"directoryPath":"/tmp/out2"}"#)
+                .expect("directoryPath alias should deserialize");
+        assert_eq!(with_directory_path.directory_path, "/tmp/out2");
+    }
 }

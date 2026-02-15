@@ -6,9 +6,7 @@ use std::time::Duration;
 
 #[derive(Debug, Deserialize)]
 struct TogglTimeEntry {
-    description: Option<String>,
     start: String,
-    stop: Option<String>,
     duration: i64, // seconds, negative if timer is running
 }
 
@@ -52,7 +50,9 @@ pub async fn fetch_focus_hours_today(
             if e.is_timeout() {
                 AppError::NetworkTimeout("Toggl Track request timed out".to_string())
             } else if e.is_connect() {
-                AppError::TogglError("Cannot reach Toggl Track API. Check your internet connection.".to_string())
+                AppError::TogglError(
+                    "Cannot reach Toggl Track API. Check your internet connection.".to_string(),
+                )
             } else {
                 AppError::TogglError(format!("Request failed: {}", e))
             }

@@ -1,0 +1,9 @@
+[advisories]
+# RUSTSEC-2023-0071 is currently flagged through sqlx's optional mysql support.
+# This project is sqlite-only and does not enable sqlx mysql features.
+ignore = [
+  "RUSTSEC-2023-0071",
+]
+
+# Keep reporting informational advisories so maintenance risk stays visible.
+informational_warnings = ["unmaintained", "unsound", "notice"]

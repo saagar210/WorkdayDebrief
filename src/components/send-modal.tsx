@@ -63,7 +63,11 @@ export default function SendModal({ summaryId, onClose }: SendModalProps) {
           } else if (config.deliveryType === 'slack') {
             method.detail = 'Webhook configured';
           } else if (config.deliveryType === 'file') {
-            method.detail = config.config.directory || '~/Documents';
+            method.detail =
+              config.config.directoryPath ||
+              config.config.directory ||
+              config.config.directory_path ||
+              '~/Documents';
           }
         }
       });
@@ -117,6 +121,14 @@ export default function SendModal({ summaryId, onClose }: SendModalProps) {
       });
 
       setResults(confirmations);
+
+      if (confirmations.length === 0) {
+        setToast({
+          type: 'error',
+          message: 'No deliveries were executed. Check your delivery configuration.',
+        });
+        return;
+      }
 
       const successCount = confirmations.filter((c) => c.success).length;
       const failCount = confirmations.length - successCount;
