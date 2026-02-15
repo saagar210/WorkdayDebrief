@@ -115,6 +115,24 @@ npm run tauri build
 # Find the .dmg in src-tauri/target/release/bundle/dmg/
 ```
 
+### Repo Hygiene
+
+Use these commands to remove local build/dependency bloat and rebuild from a clean state:
+
+```bash
+# Remove generated artifacts and local cache folders
+npm run clean
+
+# Reinstall dependencies exactly from lockfile
+npm ci
+
+# Verify TypeScript + production frontend build
+npm run build
+
+# (Optional) Run full desktop app in dev mode
+npm run tauri dev
+```
+
 ## Configuration
 
 ### First-Time Setup
