@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import type { Settings } from '../types';
 import Toast from './toast';
 import Card from './ui/card';
 import Button from './ui/button';
@@ -9,20 +10,6 @@ import Badge from './ui/badge';
 import { InfoTooltip } from './ui/tooltip';
 
 type TabId = 'llm' | 'data-sources' | 'delivery' | 'schedule';
-
-interface Settings {
-  scheduledTime: string;
-  defaultTone: string;
-  enableLlm: boolean;
-  llmModel: string;
-  llmTemperature: number;
-  llmTimeoutSecs: number;
-  calendarSource: string;
-  retentionDays: number;
-  jiraBaseUrl: string | null;
-  jiraProjectKey: string | null;
-  togglWorkspaceId: string | null;
-}
 
 export default function SettingsPanelV2() {
   const [activeTab, setActiveTab] = useState<TabId>('llm');

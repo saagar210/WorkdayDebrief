@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import type { DeliveryConfirmation } from '../types';
 import Toast from './toast';
 
 interface SendModalProps {
@@ -12,13 +13,6 @@ interface DeliveryConfigRow {
   deliveryType: string;
   config: Record<string, any>;
   isEnabled: boolean;
-}
-
-interface DeliveryConfirmation {
-  deliveryType: string;
-  success: boolean;
-  message: string;
-  timestamp: string;
 }
 
 interface AvailableMethod {

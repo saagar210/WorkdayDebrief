@@ -33,14 +33,6 @@ export interface SourceStatusDetail {
   error?: string;
 }
 
-export interface AggregatedData {
-  ticketsClosed: Ticket[];
-  ticketsInProgress: Ticket[];
-  meetings: Meeting[];
-  focusHours: number;
-  dataSourcesStatus: DataSourcesStatus;
-}
-
 export interface SummaryResponse {
   id: number;
   summaryDate: string;
@@ -90,19 +82,7 @@ export interface Settings {
   llmTimeoutSecs: number;
   calendarSource: string;
   retentionDays: number;
-  jiraBaseUrl?: string;
-  jiraProjectKey?: string;
-  togglWorkspaceId?: string;
-}
-
-export interface DeliveryConfig {
-  id?: number;
-  deliveryType: string;
-  config: Record<string, unknown>;
-  isEnabled: boolean;
-}
-
-export interface AppError {
-  error: string;
-  details?: string;
+  jiraBaseUrl: string | null;
+  jiraProjectKey: string | null;
+  togglWorkspaceId: string | null;
 }
