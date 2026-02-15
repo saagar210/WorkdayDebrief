@@ -86,10 +86,7 @@ impl GoogleOAuthClient {
     }
 
     /// Refresh access token using refresh token
-    pub async fn refresh_access_token(
-        &self,
-        refresh_token: String,
-    ) -> Result<String, AppError> {
+    pub async fn refresh_access_token(&self, refresh_token: String) -> Result<String, AppError> {
         let refresh_token = oauth2::RefreshToken::new(refresh_token);
 
         let token_result = self
@@ -125,79 +122,75 @@ pub async fn wait_for_callback(app: tauri::AppHandle) -> Result<String, AppError
         .set_nonblocking(false)
         .map_err(|e| AppError::NotConfigured(format!("Cannot set socket options: {}", e)))?;
 
-    for stream in listener.incoming() {
-        if let Ok(mut stream) = stream {
-            use std::io::{BufRead, BufReader, Write};
+    for mut stream in listener.incoming().flatten() {
+        use std::io::{BufRead, BufReader, Write};
 
-            let buf_reader = BufReader::new(&stream);
-            let request_line = buf_reader
-                .lines()
-                .next()
-                .ok_or_else(|| AppError::NotConfigured("No request line".to_string()))?
-                .map_err(|e| AppError::NotConfigured(format!("Read error: {}", e)))?;
+        let buf_reader = BufReader::new(&stream);
+        let request_line = buf_reader
+            .lines()
+            .next()
+            .ok_or_else(|| AppError::NotConfigured("No request line".to_string()))?
+            .map_err(|e| AppError::NotConfigured(format!("Read error: {}", e)))?;
 
-            // Parse the authorization code from the request
-            if request_line.starts_with("GET /callback?") {
-                let query = request_line
-                    .split_whitespace()
-                    .nth(1)
-                    .and_then(|path| path.split('?').nth(1))
-                    .ok_or_else(|| AppError::NotConfigured("No query string".to_string()))?;
+        // Parse the authorization code from the request
+        if request_line.starts_with("GET /callback?") {
+            let query = request_line
+                .split_whitespace()
+                .nth(1)
+                .and_then(|path| path.split('?').nth(1))
+                .ok_or_else(|| AppError::NotConfigured("No query string".to_string()))?;
 
-                let mut code = None;
-                let mut state = None;
+            let mut code = None;
+            let mut state = None;
 
-                for param in query.split('&') {
-                    if let Some(value) = param.strip_prefix("code=") {
-                        code = Some(urlencoding::decode(value).unwrap_or_default().to_string());
-                    } else if let Some(value) = param.strip_prefix("state=") {
-                        state = Some(urlencoding::decode(value).unwrap_or_default().to_string());
-                    }
+            for param in query.split('&') {
+                if let Some(value) = param.strip_prefix("code=") {
+                    code = Some(urlencoding::decode(value).unwrap_or_default().to_string());
+                } else if let Some(value) = param.strip_prefix("state=") {
+                    state = Some(urlencoding::decode(value).unwrap_or_default().to_string());
                 }
-
-                let code = code.ok_or_else(|| {
-                    AppError::NotConfigured("No authorization code in callback".to_string())
-                })?;
-
-                // Validate CSRF token (state parameter)
-                let stored_csrf = crate::stronghold::get_secret(
-                    &app,
-                    crate::stronghold::keys::OAUTH_CSRF_TOKEN,
-                )?;
-
-                if let Some(stored) = stored_csrf {
-                    if state.as_ref() != Some(&stored) {
-                        let _ = app.emit(
-                            "oauth-error",
-                            "CSRF token mismatch. Possible security issue.",
-                        );
-                        return Err(AppError::NotConfigured(
-                            "CSRF token validation failed".to_string(),
-                        ));
-                    }
-                } else {
-                    let _ = app.emit("oauth-error", "No CSRF token found in storage");
-                    return Err(AppError::NotConfigured("No CSRF token stored".to_string()));
-                }
-
-                // Send success response
-                let response = "HTTP/1.1 200 OK\r\n\
-                               Content-Type: text/html\r\n\
-                               \r\n\
-                               <html><body>\
-                               <h1>Authorization Successful!</h1>\
-                               <p>You can close this window and return to WorkdayDebrief.</p>\
-                               </body></html>";
-
-                stream
-                    .write_all(response.as_bytes())
-                    .map_err(|e| AppError::NotConfigured(format!("Write error: {}", e)))?;
-
-                // Emit success event to frontend
-                let _ = app.emit("oauth-code-received", code.clone());
-
-                return Ok(code);
             }
+
+            let code = code.ok_or_else(|| {
+                AppError::NotConfigured("No authorization code in callback".to_string())
+            })?;
+
+            // Validate CSRF token (state parameter)
+            let stored_csrf =
+                crate::stronghold::get_secret(&app, crate::stronghold::keys::OAUTH_CSRF_TOKEN)?;
+
+            if let Some(stored) = stored_csrf {
+                if state.as_ref() != Some(&stored) {
+                    let _ = app.emit(
+                        "oauth-error",
+                        "CSRF token mismatch. Possible security issue.",
+                    );
+                    return Err(AppError::NotConfigured(
+                        "CSRF token validation failed".to_string(),
+                    ));
+                }
+            } else {
+                let _ = app.emit("oauth-error", "No CSRF token found in storage");
+                return Err(AppError::NotConfigured("No CSRF token stored".to_string()));
+            }
+
+            // Send success response
+            let response = "HTTP/1.1 200 OK\r\n\
+                           Content-Type: text/html\r\n\
+                           \r\n\
+                           <html><body>\
+                           <h1>Authorization Successful!</h1>\
+                           <p>You can close this window and return to WorkdayDebrief.</p>\
+                           </body></html>";
+
+            stream
+                .write_all(response.as_bytes())
+                .map_err(|e| AppError::NotConfigured(format!("Write error: {}", e)))?;
+
+            // Emit success event to frontend
+            let _ = app.emit("oauth-code-received", code.clone());
+
+            return Ok(code);
         }
     }
 
@@ -213,8 +206,8 @@ pub async fn start_google_oauth(app: tauri::AppHandle) -> Result<String, AppErro
     // Validate OAuth client credentials first
     let client_id = std::env::var("GOOGLE_CLIENT_ID")
         .unwrap_or_else(|_| "YOUR_CLIENT_ID.apps.googleusercontent.com".to_string());
-    let client_secret = std::env::var("GOOGLE_CLIENT_SECRET")
-        .unwrap_or_else(|_| "YOUR_CLIENT_SECRET".to_string());
+    let client_secret =
+        std::env::var("GOOGLE_CLIENT_SECRET").unwrap_or_else(|_| "YOUR_CLIENT_SECRET".to_string());
 
     // Check for placeholder values
     if client_id.contains("YOUR_CLIENT_ID") || client_secret.contains("YOUR_CLIENT_SECRET") {
@@ -233,11 +226,7 @@ pub async fn start_google_oauth(app: tauri::AppHandle) -> Result<String, AppErro
     let (auth_url, csrf_token, pkce_verifier) = oauth_client.get_authorization_url();
 
     // Store CSRF token and PKCE verifier temporarily
-    crate::stronghold::store_secret(
-        &app,
-        crate::stronghold::keys::OAUTH_CSRF_TOKEN,
-        &csrf_token,
-    )?;
+    crate::stronghold::store_secret(&app, crate::stronghold::keys::OAUTH_CSRF_TOKEN, &csrf_token)?;
     crate::stronghold::store_secret(
         &app,
         crate::stronghold::keys::OAUTH_PKCE_VERIFIER,
@@ -292,17 +281,15 @@ pub async fn start_google_oauth(app: tauri::AppHandle) -> Result<String, AppErro
 async fn complete_oauth_flow(app: tauri::AppHandle, code: String) -> Result<(), AppError> {
     let client_id = std::env::var("GOOGLE_CLIENT_ID")
         .unwrap_or_else(|_| "YOUR_CLIENT_ID.apps.googleusercontent.com".to_string());
-    let client_secret = std::env::var("GOOGLE_CLIENT_SECRET")
-        .unwrap_or_else(|_| "YOUR_CLIENT_SECRET".to_string());
+    let client_secret =
+        std::env::var("GOOGLE_CLIENT_SECRET").unwrap_or_else(|_| "YOUR_CLIENT_SECRET".to_string());
 
     let oauth_client = GoogleOAuthClient::new(client_id, client_secret)?;
 
     // Retrieve PKCE verifier
-    let pkce_verifier = crate::stronghold::get_secret(
-        &app,
-        crate::stronghold::keys::OAUTH_PKCE_VERIFIER,
-    )?
-    .ok_or_else(|| AppError::NotConfigured("No PKCE verifier found".to_string()))?;
+    let pkce_verifier =
+        crate::stronghold::get_secret(&app, crate::stronghold::keys::OAUTH_PKCE_VERIFIER)?
+            .ok_or_else(|| AppError::NotConfigured("No PKCE verifier found".to_string()))?;
 
     // Exchange code for tokens
     let (_access_token, refresh_token) = oauth_client.exchange_code(code, pkce_verifier).await?;

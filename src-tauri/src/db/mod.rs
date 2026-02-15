@@ -18,8 +18,10 @@ pub async fn init_db(app_data_dir: PathBuf) -> Result<SqlitePool, sqlx::Error> {
         .connect(&db_url)
         .await?;
 
-    // Run migrations
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    // Run migrations using runtime loader to keep dependency surface small.
+    let migrations_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("migrations");
+    let migrator = sqlx::migrate::Migrator::new(migrations_path.as_path()).await?;
+    migrator.run(&pool).await?;
 
     Ok(pool)
 }

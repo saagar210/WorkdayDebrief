@@ -1,17 +1,31 @@
-use crate::aggregation::{AggregatedData, Meeting, Ticket};
+use crate::aggregation::{Meeting, Ticket};
+
+pub struct SummaryMarkdownInput<'a> {
+    pub date: &'a str,
+    pub narrative: &'a str,
+    pub tickets_closed: &'a [Ticket],
+    pub tickets_in_progress: &'a [Ticket],
+    pub meetings: &'a [Meeting],
+    pub focus_hours: f32,
+    pub blockers: &'a str,
+    pub tomorrow_priorities: &'a str,
+    pub manual_notes: &'a str,
+}
 
 /// Render SummaryResponse to markdown format
-pub fn render_summary_to_markdown(
-    date: &str,
-    narrative: &str,
-    tickets_closed: &[Ticket],
-    tickets_in_progress: &[Ticket],
-    meetings: &[Meeting],
-    focus_hours: f32,
-    blockers: &str,
-    tomorrow_priorities: &str,
-    manual_notes: &str,
-) -> String {
+pub fn render_summary_to_markdown(input: SummaryMarkdownInput<'_>) -> String {
+    let SummaryMarkdownInput {
+        date,
+        narrative,
+        tickets_closed,
+        tickets_in_progress,
+        meetings,
+        focus_hours,
+        blockers,
+        tomorrow_priorities,
+        manual_notes,
+    } = input;
+
     let mut sections = Vec::new();
 
     // Header
@@ -31,7 +45,10 @@ pub fn render_summary_to_markdown(
     if !tickets_closed.is_empty() {
         sections.push(format!("## Tickets Closed ({})", tickets_closed.len()));
         for ticket in tickets_closed {
-            sections.push(format!("- [{}]({}) - {}", ticket.id, ticket.url, ticket.title));
+            sections.push(format!(
+                "- [{}]({}) - {}",
+                ticket.id, ticket.url, ticket.title
+            ));
         }
         sections.push(String::new());
     }
@@ -40,7 +57,10 @@ pub fn render_summary_to_markdown(
     if !tickets_in_progress.is_empty() {
         sections.push(format!("## In Progress ({})", tickets_in_progress.len()));
         for ticket in tickets_in_progress {
-            sections.push(format!("- [{}]({}) - {}", ticket.id, ticket.url, ticket.title));
+            sections.push(format!(
+                "- [{}]({}) - {}",
+                ticket.id, ticket.url, ticket.title
+            ));
         }
         sections.push(String::new());
     }
@@ -54,7 +74,10 @@ pub fn render_summary_to_markdown(
             total_minutes
         ));
         for meeting in meetings {
-            sections.push(format!("- {} ({}m)", meeting.title, meeting.duration_minutes));
+            sections.push(format!(
+                "- {} ({}m)",
+                meeting.title, meeting.duration_minutes
+            ));
         }
         sections.push(String::new());
     }
@@ -88,19 +111,4 @@ pub fn render_summary_to_markdown(
     }
 
     sections.join("\n")
-}
-
-/// Simple render for aggregated data only (for fallback scenarios)
-pub fn render_aggregated_to_markdown(data: &AggregatedData, date: &str) -> String {
-    render_summary_to_markdown(
-        date,
-        "",
-        &data.tickets_closed,
-        &data.tickets_in_progress,
-        &data.meetings,
-        data.focus_hours,
-        "",
-        "",
-        "",
-    )
 }

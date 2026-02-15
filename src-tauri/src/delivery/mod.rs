@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DeliveryConfirmation {
     pub delivery_type: String,
     pub success: bool,
@@ -60,7 +61,7 @@ async fn send_email_with_retry(
     let mut last_error = None;
     let backoff_delays = [1, 3, 9];
 
-    for attempt in 0..3 {
+    for (attempt, delay_secs) in backoff_delays.iter().enumerate() {
         match email::send_email(summary_markdown, config) {
             Ok(()) => {
                 return DeliveryConfirmation {
@@ -82,7 +83,7 @@ async fn send_email_with_retry(
                 if !is_retryable || attempt == 2 {
                     break;
                 }
-                tokio::time::sleep(Duration::from_secs(backoff_delays[attempt])).await;
+                tokio::time::sleep(Duration::from_secs(*delay_secs)).await;
             }
         }
     }
@@ -103,7 +104,7 @@ async fn send_slack_with_retry(
     let mut last_error = None;
     let backoff_delays = [1, 3, 9];
 
-    for attempt in 0..3 {
+    for (attempt, delay_secs) in backoff_delays.iter().enumerate() {
         match slack::send_slack(summary_text, config).await {
             Ok(()) => {
                 return DeliveryConfirmation {
@@ -125,7 +126,7 @@ async fn send_slack_with_retry(
                 if !is_retryable || attempt == 2 {
                     break;
                 }
-                tokio::time::sleep(Duration::from_secs(backoff_delays[attempt])).await;
+                tokio::time::sleep(Duration::from_secs(*delay_secs)).await;
             }
         }
     }
@@ -147,7 +148,7 @@ async fn send_file_with_retry(
     let mut last_error = None;
     let backoff_delays = [1, 3, 9];
 
-    for attempt in 0..3 {
+    for (attempt, delay_secs) in backoff_delays.iter().enumerate() {
         match file::write_markdown(summary, config, date) {
             Ok(path) => {
                 return DeliveryConfirmation {
@@ -169,7 +170,7 @@ async fn send_file_with_retry(
                 if !is_retryable || attempt == 2 {
                     break;
                 }
-                tokio::time::sleep(Duration::from_secs(backoff_delays[attempt])).await;
+                tokio::time::sleep(Duration::from_secs(*delay_secs)).await;
             }
         }
     }

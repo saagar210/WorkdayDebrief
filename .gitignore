@@ -1,0 +1,15 @@
+.codex_audit/
+
+# OS/editor noise
+.DS_Store
+
+# Dependencies and build artifacts
+node_modules/
+dist/
+src-tauri/target/
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
+
+# Local generated template scaffold
+/--name/

@@ -5,7 +5,9 @@ pub enum AppError {
     #[error("Jira error: {0}")]
     JiraUnreachable(String),
 
-    #[error("Google Calendar requires re-authentication. Click 'Connect Google Account' in Settings.")]
+    #[error(
+        "Google Calendar requires re-authentication. Click 'Connect Google Account' in Settings."
+    )]
     CalendarUnauthorized,
 
     #[error("Google Calendar error: {0}")]
