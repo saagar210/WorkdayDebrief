@@ -23,7 +23,10 @@ export default function TomorrowPriorities() {
       // Calculate yesterday's date
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-      const dateStr = yesterday.toISOString().split('T')[0];
+      const year = yesterday.getFullYear();
+      const month = String(yesterday.getMonth() + 1).padStart(2, '0');
+      const day = String(yesterday.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
 
       const summary = await invoke<SummaryResponse | null>('get_summary_by_date', {
         date: dateStr,
@@ -55,13 +58,14 @@ export default function TomorrowPriorities() {
 
   // Extract Jira ticket IDs (e.g., PROJ-123, ABC-456)
   const renderPrioritiesWithLinks = () => {
-    const ticketPattern = /([A-Z]+-\d+)/g;
+    const splitPattern = /([A-Z]+-\d+)/g;
+    const matchPattern = /^[A-Z]+-\d+$/;
     const parts = priorities.split('\n').map((line, lineIdx) => {
-      const parts = line.split(ticketPattern);
+      const parts = line.split(splitPattern);
       return (
         <div key={lineIdx} className="mb-1">
           {parts.map((part, partIdx) => {
-            if (ticketPattern.test(part)) {
+            if (matchPattern.test(part)) {
               return (
                 <a
                   key={partIdx}

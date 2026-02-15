@@ -8,11 +8,10 @@ use tauri::{AppHandle, State};
 // ── Phase 0-1: Core ──
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SummaryInput {
     pub blockers: Option<String>,
-    #[serde(rename = "tomorrowPriorities")]
     pub tomorrow_priorities: Option<String>,
-    #[serde(rename = "manualNotes")]
     pub manual_notes: Option<String>,
     pub narrative: Option<String>,
     pub tone: Option<String>,
@@ -136,7 +135,9 @@ pub async fn generate_summary(
     let tickets_closed_json = serde_json::to_string(&aggregated_data.tickets_closed)
         .map_err(|e| AppError::DatabaseError(format!("Cannot serialize tickets_closed: {}", e)))?;
     let tickets_in_progress_json = serde_json::to_string(&aggregated_data.tickets_in_progress)
-        .map_err(|e| AppError::DatabaseError(format!("Cannot serialize tickets_in_progress: {}", e)))?;
+        .map_err(|e| {
+            AppError::DatabaseError(format!("Cannot serialize tickets_in_progress: {}", e))
+        })?;
     let meetings_json = serde_json::to_string(&aggregated_data.meetings)
         .map_err(|e| AppError::DatabaseError(format!("Cannot serialize meetings: {}", e)))?;
     let sources_status_json = serde_json::to_string(&aggregated_data.data_sources_status)
@@ -202,29 +203,37 @@ pub async fn regenerate_narrative(
     .fetch_optional(db.inner())
     .await?;
 
-    let row = row.ok_or_else(|| {
-        AppError::DatabaseError(format!("Summary {} not found", summary_id))
-    })?;
+    let row =
+        row.ok_or_else(|| AppError::DatabaseError(format!("Summary {} not found", summary_id)))?;
 
     // Parse JSON fields - log errors but use defaults to avoid breaking regeneration
     let tickets_closed_str: String = row.get("tickets_closed");
-    let tickets_closed: Vec<crate::aggregation::Ticket> =
-        serde_json::from_str(&tickets_closed_str).unwrap_or_else(|e| {
-            eprintln!("Warning: Failed to parse tickets_closed for summary {}: {}", summary_id, e);
+    let tickets_closed: Vec<crate::aggregation::Ticket> = serde_json::from_str(&tickets_closed_str)
+        .unwrap_or_else(|e| {
+            eprintln!(
+                "Warning: Failed to parse tickets_closed for summary {}: {}",
+                summary_id, e
+            );
             Vec::new()
         });
 
     let tickets_in_progress_str: String = row.get("tickets_in_progress");
     let tickets_in_progress: Vec<crate::aggregation::Ticket> =
         serde_json::from_str(&tickets_in_progress_str).unwrap_or_else(|e| {
-            eprintln!("Warning: Failed to parse tickets_in_progress for summary {}: {}", summary_id, e);
+            eprintln!(
+                "Warning: Failed to parse tickets_in_progress for summary {}: {}",
+                summary_id, e
+            );
             Vec::new()
         });
 
     let meetings_str: String = row.get("meetings");
-    let meetings: Vec<crate::aggregation::Meeting> =
-        serde_json::from_str(&meetings_str).unwrap_or_else(|e| {
-            eprintln!("Warning: Failed to parse meetings for summary {}: {}", summary_id, e);
+    let meetings: Vec<crate::aggregation::Meeting> = serde_json::from_str(&meetings_str)
+        .unwrap_or_else(|e| {
+            eprintln!(
+                "Warning: Failed to parse meetings for summary {}: {}",
+                summary_id, e
+            );
             Vec::new()
         });
     let focus_hours: f32 = row.get("focus_hours");
@@ -295,11 +304,10 @@ pub async fn regenerate_narrative(
 // ── Phase 4: Delivery ──
 
 #[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DeliveryConfigInput {
-    #[serde(rename = "deliveryType")]
     delivery_type: String,
     config: serde_json::Map<String, serde_json::Value>,
-    #[serde(rename = "isEnabled")]
     is_enabled: bool,
 }
 
@@ -314,37 +322,60 @@ pub async fn send_summary(
     let mut backend_configs: Vec<crate::delivery::DeliveryConfig> = Vec::new();
 
     for input in delivery_configs {
+        if !input.is_enabled {
+            continue;
+        }
+
         let mut config_map = input.config;
 
         // Inject secrets from vault
         if input.delivery_type == "email" {
-            if let Some(password) = crate::stronghold::get_secret(&app, "delivery_email_password")? {
+            if let Some(password) =
+                crate::stronghold::get_secret(&app, crate::stronghold::keys::SMTP_PASSWORD)?
+            {
                 config_map.insert("password".to_string(), serde_json::Value::String(password));
             }
 
             // Convert to enum variant
             let json_value = serde_json::Value::Object(config_map);
-            if let Ok(email_config) = serde_json::from_value(json_value) {
-                backend_configs.push(crate::delivery::DeliveryConfig::Email(email_config));
-            }
+            let email_config = serde_json::from_value(json_value).map_err(|e| {
+                AppError::NotConfigured(format!("Invalid email delivery config: {}", e))
+            })?;
+            backend_configs.push(crate::delivery::DeliveryConfig::Email(email_config));
         } else if input.delivery_type == "slack" {
-            if let Some(webhook) = crate::stronghold::get_secret(&app, "delivery_slack_webhook")? {
+            if let Some(webhook) =
+                crate::stronghold::get_secret(&app, crate::stronghold::keys::SLACK_WEBHOOK_URL)?
+            {
                 config_map.insert("webhookUrl".to_string(), serde_json::Value::String(webhook));
             }
 
             // Convert to enum variant
             let json_value = serde_json::Value::Object(config_map);
-            if let Ok(slack_config) = serde_json::from_value(json_value) {
-                backend_configs.push(crate::delivery::DeliveryConfig::Slack(slack_config));
-            }
+            let slack_config = serde_json::from_value(json_value).map_err(|e| {
+                AppError::NotConfigured(format!("Invalid slack delivery config: {}", e))
+            })?;
+            backend_configs.push(crate::delivery::DeliveryConfig::Slack(slack_config));
         } else if input.delivery_type == "file" {
             // Convert to enum variant
             let json_value = serde_json::Value::Object(config_map);
-            if let Ok(file_config) = serde_json::from_value(json_value) {
-                backend_configs.push(crate::delivery::DeliveryConfig::File(file_config));
-            }
+            let file_config = serde_json::from_value(json_value).map_err(|e| {
+                AppError::NotConfigured(format!("Invalid file delivery config: {}", e))
+            })?;
+            backend_configs.push(crate::delivery::DeliveryConfig::File(file_config));
+        } else {
+            return Err(AppError::NotConfigured(format!(
+                "Unsupported delivery type: {}",
+                input.delivery_type
+            )));
         }
     }
+
+    if backend_configs.is_empty() {
+        return Err(AppError::NotConfigured(
+            "No valid delivery configurations were selected".to_string(),
+        ));
+    }
+
     // Load summary from database
     let row = sqlx::query(
         r#"
@@ -358,29 +389,37 @@ pub async fn send_summary(
     .fetch_optional(db.inner())
     .await?;
 
-    let row = row.ok_or_else(|| {
-        AppError::DatabaseError(format!("Summary {} not found", summary_id))
-    })?;
+    let row =
+        row.ok_or_else(|| AppError::DatabaseError(format!("Summary {} not found", summary_id)))?;
 
     // Parse data - log errors but use defaults to avoid breaking delivery
     let tickets_closed_str: String = row.get("tickets_closed");
-    let tickets_closed: Vec<crate::aggregation::Ticket> =
-        serde_json::from_str(&tickets_closed_str).unwrap_or_else(|e| {
-            eprintln!("Warning: Failed to parse tickets_closed for summary {}: {}", summary_id, e);
+    let tickets_closed: Vec<crate::aggregation::Ticket> = serde_json::from_str(&tickets_closed_str)
+        .unwrap_or_else(|e| {
+            eprintln!(
+                "Warning: Failed to parse tickets_closed for summary {}: {}",
+                summary_id, e
+            );
             Vec::new()
         });
 
     let tickets_in_progress_str: String = row.get("tickets_in_progress");
     let tickets_in_progress: Vec<crate::aggregation::Ticket> =
         serde_json::from_str(&tickets_in_progress_str).unwrap_or_else(|e| {
-            eprintln!("Warning: Failed to parse tickets_in_progress for summary {}: {}", summary_id, e);
+            eprintln!(
+                "Warning: Failed to parse tickets_in_progress for summary {}: {}",
+                summary_id, e
+            );
             Vec::new()
         });
 
     let meetings_str: String = row.get("meetings");
-    let meetings: Vec<crate::aggregation::Meeting> =
-        serde_json::from_str(&meetings_str).unwrap_or_else(|e| {
-            eprintln!("Warning: Failed to parse meetings for summary {}: {}", summary_id, e);
+    let meetings: Vec<crate::aggregation::Meeting> = serde_json::from_str(&meetings_str)
+        .unwrap_or_else(|e| {
+            eprintln!(
+                "Warning: Failed to parse meetings for summary {}: {}",
+                summary_id, e
+            );
             Vec::new()
         });
     let focus_hours: f32 = row.get("focus_hours");
@@ -391,17 +430,18 @@ pub async fn send_summary(
     let summary_date: String = row.get("summary_date");
 
     // Render to markdown
-    let markdown = crate::markdown::render_summary_to_markdown(
-        &summary_date,
-        &narrative,
-        &tickets_closed,
-        &tickets_in_progress,
-        &meetings,
-        focus_hours,
-        &blockers,
-        &tomorrow_priorities,
-        &manual_notes,
-    );
+    let markdown =
+        crate::markdown::render_summary_to_markdown(crate::markdown::SummaryMarkdownInput {
+            date: &summary_date,
+            narrative: &narrative,
+            tickets_closed: &tickets_closed,
+            tickets_in_progress: &tickets_in_progress,
+            meetings: &meetings,
+            focus_hours,
+            blockers: &blockers,
+            tomorrow_priorities: &tomorrow_priorities,
+            manual_notes: &manual_notes,
+        });
 
     // Send to all targets
     let confirmations =
@@ -447,8 +487,7 @@ pub async fn test_delivery(
     let test_markdown = "# Test Summary\n\nThis is a test delivery from WorkdayDebrief.";
     let test_date = "2026-02-14";
 
-    let confirmations =
-        crate::delivery::send_summary(test_markdown, test_date, vec![config]).await;
+    let confirmations = crate::delivery::send_summary(test_markdown, test_date, vec![config]).await;
 
     if let Some(confirmation) = confirmations.first() {
         if confirmation.success {
@@ -463,22 +502,25 @@ pub async fn test_delivery(
             )))
         }
     } else {
-        Err(AppError::NotConfigured("No confirmation received".to_string()))
+        Err(AppError::NotConfigured(
+            "No confirmation received".to_string(),
+        ))
     }
 }
 
 // ── Settings ──
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Settings {
-    pub scheduled_time: String,       // "17:00"
-    pub default_tone: String,         // "professional", "casual", "detailed"
+    pub scheduled_time: String, // "17:00"
+    pub default_tone: String,   // "professional", "casual", "detailed"
     pub enable_llm: bool,
-    pub llm_model: String,            // "qwen3:14b"
-    pub llm_temperature: f32,         // 0.0-1.0
-    pub llm_timeout_secs: u64,        // 5-30
-    pub calendar_source: String,      // "google", "none"
-    pub retention_days: i32,          // 7-365
+    pub llm_model: String,       // "qwen3:14b"
+    pub llm_temperature: f32,    // 0.0-1.0
+    pub llm_timeout_secs: u64,   // 5-30
+    pub calendar_source: String, // "google", "none"
+    pub retention_days: i32,     // 7-365
     pub jira_base_url: Option<String>,
     pub jira_project_key: Option<String>,
     pub toggl_workspace_id: Option<String>,
@@ -522,24 +564,38 @@ pub async fn save_settings(
     // Validate inputs
     let parts: Vec<&str> = settings.scheduled_time.split(':').collect();
     if parts.len() != 2 {
-        return Err(AppError::NotConfigured("Invalid time format. Use HH:MM".to_string()));
+        return Err(AppError::NotConfigured(
+            "Invalid time format. Use HH:MM".to_string(),
+        ));
     }
-    let hour: u32 = parts[0].parse().map_err(|_| AppError::NotConfigured("Invalid hour".to_string()))?;
-    let minute: u32 = parts[1].parse().map_err(|_| AppError::NotConfigured("Invalid minute".to_string()))?;
+    let hour: u32 = parts[0]
+        .parse()
+        .map_err(|_| AppError::NotConfigured("Invalid hour".to_string()))?;
+    let minute: u32 = parts[1]
+        .parse()
+        .map_err(|_| AppError::NotConfigured("Invalid minute".to_string()))?;
     if hour > 23 || minute > 59 {
-        return Err(AppError::NotConfigured("Hour must be 0-23, minute must be 0-59".to_string()));
+        return Err(AppError::NotConfigured(
+            "Hour must be 0-23, minute must be 0-59".to_string(),
+        ));
     }
 
     if !(0.0..=1.0).contains(&settings.llm_temperature) {
-        return Err(AppError::NotConfigured("Temperature must be 0.0-1.0".to_string()));
+        return Err(AppError::NotConfigured(
+            "Temperature must be 0.0-1.0".to_string(),
+        ));
     }
 
     if !(5..=30).contains(&settings.llm_timeout_secs) {
-        return Err(AppError::NotConfigured("Timeout must be 5-30 seconds".to_string()));
+        return Err(AppError::NotConfigured(
+            "Timeout must be 5-30 seconds".to_string(),
+        ));
     }
 
     if settings.retention_days < 7 || settings.retention_days > 365 {
-        return Err(AppError::NotConfigured("Retention days must be 7-365".to_string()));
+        return Err(AppError::NotConfigured(
+            "Retention days must be 7-365".to_string(),
+        ));
     }
 
     // Update settings
@@ -595,7 +651,10 @@ pub async fn save_settings(
         {
             eprintln!("[Settings] Failed to restart scheduler: {}", e);
         } else {
-            eprintln!("[Settings] Scheduler restarted with time: {}", settings.scheduled_time);
+            eprintln!(
+                "[Settings] Scheduler restarted with time: {}",
+                settings.scheduled_time
+            );
         }
     }
 
@@ -605,10 +664,11 @@ pub async fn save_settings(
 // ── Delivery Config ──
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DeliveryConfigRow {
     pub id: i64,
-    pub delivery_type: String,  // "email", "slack", "file"
-    pub config: serde_json::Value,  // JSON blob with type-specific config
+    pub delivery_type: String,     // "email", "slack", "file"
+    pub config: serde_json::Value, // JSON blob with type-specific config
     pub is_enabled: bool,
 }
 
@@ -631,8 +691,8 @@ pub async fn get_delivery_configs(
     let mut configs = Vec::new();
     for row in rows {
         let config_str: String = row.get("config");
-        let mut config: serde_json::Value = serde_json::from_str(&config_str)
-            .unwrap_or_else(|_| serde_json::json!({}));
+        let mut config: serde_json::Value =
+            serde_json::from_str(&config_str).unwrap_or_else(|_| serde_json::json!({}));
 
         let delivery_type: String = row.get("delivery_type");
 
@@ -640,15 +700,25 @@ pub async fn get_delivery_configs(
         if let Some(obj) = config.as_object_mut() {
             if delivery_type == "email" {
                 // Check if password exists in vault
-                if crate::stronghold::get_secret(&app, "delivery_email_password")?.is_some() {
-                    obj.insert("password".to_string(), serde_json::Value::String("••••••".to_string()));
+                if crate::stronghold::get_secret(&app, crate::stronghold::keys::SMTP_PASSWORD)?
+                    .is_some()
+                {
+                    obj.insert(
+                        "password".to_string(),
+                        serde_json::Value::String("••••••".to_string()),
+                    );
                 }
             }
 
             if delivery_type == "slack" {
                 // Check if webhook exists in vault
-                if crate::stronghold::get_secret(&app, "delivery_slack_webhook")?.is_some() {
-                    obj.insert("webhookUrl".to_string(), serde_json::Value::String("••••••".to_string()));
+                if crate::stronghold::get_secret(&app, crate::stronghold::keys::SLACK_WEBHOOK_URL)?
+                    .is_some()
+                {
+                    obj.insert(
+                        "webhookUrl".to_string(),
+                        serde_json::Value::String("••••••".to_string()),
+                    );
                 }
             }
         }
@@ -665,6 +735,7 @@ pub async fn get_delivery_configs(
 }
 
 #[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SaveDeliveryConfigInput {
     pub delivery_type: String,
     pub config: serde_json::Value,
@@ -693,7 +764,7 @@ pub async fn save_delivery_config(
                 if password != "••••••" {
                     crate::stronghold::store_secret(
                         &app,
-                        "delivery_email_password",
+                        crate::stronghold::keys::SMTP_PASSWORD,
                         password,
                     )?;
                 }
@@ -709,7 +780,7 @@ pub async fn save_delivery_config(
                 if webhook != "••••••" {
                     crate::stronghold::store_secret(
                         &app,
-                        "delivery_slack_webhook",
+                        crate::stronghold::keys::SLACK_WEBHOOK_URL,
                         webhook,
                     )?;
                 }
@@ -743,28 +814,44 @@ pub async fn save_delivery_config(
 
 // ── Stronghold (Secret Storage) ──
 
+fn validate_secret_key(key: &str) -> Result<(), AppError> {
+    let allowed = matches!(
+        key,
+        crate::stronghold::keys::SMTP_PASSWORD
+            | crate::stronghold::keys::SLACK_WEBHOOK_URL
+            | crate::stronghold::keys::JIRA_API_TOKEN
+            | crate::stronghold::keys::JIRA_EMAIL
+            | crate::stronghold::keys::GOOGLE_REFRESH_TOKEN
+            | crate::stronghold::keys::TOGGL_API_TOKEN
+            | crate::stronghold::keys::OAUTH_CSRF_TOKEN
+            | crate::stronghold::keys::OAUTH_PKCE_VERIFIER
+    );
+
+    if allowed {
+        Ok(())
+    } else {
+        Err(AppError::NotConfigured(format!(
+            "Unsupported secret key: {}",
+            key
+        )))
+    }
+}
+
 #[tauri::command]
-pub fn store_secret(
-    app: AppHandle,
-    key: String,
-    value: String,
-) -> Result<(), AppError> {
+pub fn store_secret(app: AppHandle, key: String, value: String) -> Result<(), AppError> {
+    validate_secret_key(&key)?;
     crate::stronghold::store_secret(&app, &key, &value)
 }
 
 #[tauri::command]
-pub fn get_secret(
-    app: AppHandle,
-    key: String,
-) -> Result<Option<String>, AppError> {
+pub fn get_secret(app: AppHandle, key: String) -> Result<Option<String>, AppError> {
+    validate_secret_key(&key)?;
     crate::stronghold::get_secret(&app, &key)
 }
 
 #[tauri::command]
-pub fn delete_secret(
-    app: AppHandle,
-    key: String,
-) -> Result<(), AppError> {
+pub fn delete_secret(app: AppHandle, key: String) -> Result<(), AppError> {
+    validate_secret_key(&key)?;
     crate::stronghold::delete_secret(&app, &key)
 }
 
@@ -779,14 +866,14 @@ pub async fn test_jira_connection(
     project_key: String,
 ) -> Result<String, AppError> {
     // Test by attempting to fetch tickets
-    match crate::aggregation::jira::fetch_tickets_today(&base_url, &email, &api_token, &project_key).await {
-        Ok((closed, in_progress)) => {
-            Ok(format!(
-                "Connected successfully! Found {} closed and {} in-progress tickets today.",
-                closed.len(),
-                in_progress.len()
-            ))
-        }
+    match crate::aggregation::jira::fetch_tickets_today(&base_url, &email, &api_token, &project_key)
+        .await
+    {
+        Ok((closed, in_progress)) => Ok(format!(
+            "Connected successfully! Found {} closed and {} in-progress tickets today.",
+            closed.len(),
+            in_progress.len()
+        )),
         Err(e) => Err(e),
     }
 }
@@ -799,12 +886,97 @@ pub async fn test_toggl_connection(
 ) -> Result<String, AppError> {
     // Test by attempting to fetch focus hours
     match crate::aggregation::toggl::fetch_focus_hours_today(&api_token, &workspace_id).await {
-        Ok(hours) => {
-            Ok(format!(
-                "Connected successfully! Tracked {:.1} hours today.",
-                hours
-            ))
-        }
+        Ok(hours) => Ok(format!(
+            "Connected successfully! Tracked {:.1} hours today.",
+            hours
+        )),
         Err(e) => Err(e),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn settings_serialize_to_camel_case() {
+        let settings = Settings {
+            scheduled_time: "17:00".to_string(),
+            default_tone: "professional".to_string(),
+            enable_llm: true,
+            llm_model: "qwen3:14b".to_string(),
+            llm_temperature: 0.7,
+            llm_timeout_secs: 15,
+            calendar_source: "none".to_string(),
+            retention_days: 90,
+            jira_base_url: Some("https://example.atlassian.net".to_string()),
+            jira_project_key: Some("PROJ".to_string()),
+            toggl_workspace_id: Some("1234".to_string()),
+        };
+
+        let value = serde_json::to_value(settings).expect("settings should serialize");
+        assert!(value.get("scheduledTime").is_some());
+        assert!(value.get("defaultTone").is_some());
+        assert!(value.get("jiraBaseUrl").is_some());
+        assert!(value.get("scheduled_time").is_none());
+    }
+
+    #[test]
+    fn delivery_config_input_deserializes_camel_case() {
+        let value = json!({
+            "deliveryType": "file",
+            "config": { "directoryPath": "/tmp/workday" },
+            "isEnabled": true
+        });
+
+        let parsed: DeliveryConfigInput =
+            serde_json::from_value(value).expect("delivery input should deserialize");
+
+        assert_eq!(parsed.delivery_type, "file");
+        assert!(parsed.is_enabled);
+        assert!(parsed.config.get("directoryPath").is_some());
+    }
+
+    #[test]
+    fn save_delivery_config_input_deserializes_camel_case() {
+        let value = json!({
+            "deliveryType": "slack",
+            "config": { "webhookUrl": "https://hooks.slack.com/services/test" },
+            "isEnabled": true
+        });
+
+        let parsed: SaveDeliveryConfigInput =
+            serde_json::from_value(value).expect("save input should deserialize");
+
+        assert_eq!(parsed.delivery_type, "slack");
+        assert!(parsed.is_enabled);
+    }
+
+    #[test]
+    fn delivery_config_row_serializes_camel_case() {
+        let row = DeliveryConfigRow {
+            id: 1,
+            delivery_type: "email".to_string(),
+            config: json!({ "toAddress": "dev@example.com" }),
+            is_enabled: true,
+        };
+
+        let value = serde_json::to_value(row).expect("row should serialize");
+        assert!(value.get("deliveryType").is_some());
+        assert!(value.get("isEnabled").is_some());
+        assert!(value.get("delivery_type").is_none());
+    }
+
+    #[test]
+    fn secret_key_policy_allows_known_keys() {
+        assert!(validate_secret_key(crate::stronghold::keys::JIRA_API_TOKEN).is_ok());
+        assert!(validate_secret_key(crate::stronghold::keys::GOOGLE_REFRESH_TOKEN).is_ok());
+        assert!(validate_secret_key(crate::stronghold::keys::SMTP_PASSWORD).is_ok());
+    }
+
+    #[test]
+    fn secret_key_policy_rejects_unknown_keys() {
+        assert!(validate_secret_key("some_random_key").is_err());
     }
 }

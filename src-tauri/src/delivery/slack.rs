@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SlackConfig {
     pub webhook_url: String,
 }
@@ -62,7 +63,10 @@ pub async fn send_slack(summary_text: &str, config: &SlackConfig) -> Result<(), 
             retry_after
         )));
     } else if !status.is_success() {
-        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
         return Err(AppError::SlackWebhookInvalid(format!(
             "HTTP {}: {}",
             status, error_text

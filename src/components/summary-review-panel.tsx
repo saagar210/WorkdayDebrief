@@ -163,6 +163,9 @@ export default function SummaryReviewPanel() {
 
   const generateMarkdown = (): string => {
     const date = summary?.summaryDate || new Date().toISOString().split('T')[0];
+    const inProgressLines = summary?.ticketsInProgress?.length
+      ? summary.ticketsInProgress.map((ticket) => `- ${ticket.id}: ${ticket.title}`).join('\n')
+      : '(None)';
     const sections = [
       `# Work Summary — ${date}`,
       '',
@@ -170,7 +173,7 @@ export default function SummaryReviewPanel() {
       narrative || '(No narrative)',
       '',
       '## In Progress',
-      blockers || '(None)',
+      inProgressLines,
       '',
       '## Blockers',
       blockers || '(None)',

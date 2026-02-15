@@ -82,13 +82,3 @@ pub async fn stop_scheduler(
     }
     Ok(())
 }
-
-/// Check if a summary exists for today, generate if missing (for missed triggers)
-pub async fn check_and_generate_if_missed(
-    _app: AppHandle,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // This would be called on app startup
-    // For now, we'll implement the check in the command
-    eprintln!("[Scheduler] Checking for missed summary generation...");
-    Ok(())
-}
