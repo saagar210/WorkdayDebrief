@@ -11,7 +11,7 @@ WorkdayDebrief is a Tauri desktop app that collects daily work activity and gene
 
 ## Stack
 
-- Frontend: React 19, TypeScript, Vite, Tailwind CSS, TanStack Query
+- Frontend: React 19, TypeScript, Vite, Tailwind CSS
 - Desktop/runtime: Tauri 2, Rust
 - Data + services: SQLite (`sqlx`), OAuth2 (Google), reqwest, lettre
 

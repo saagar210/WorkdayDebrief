@@ -6,25 +6,22 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "clean": "node -e \"const fs=require('fs'); const path=require('path'); const targets=['dist','node_modules','src-tauri/target','.codex_audit','--name','tsconfig.tsbuildinfo']; for (const t of targets) { try { fs.rmSync(t,{recursive:true,force:true}); } catch {} } function walk(dir){ let ents=[]; try { ents=fs.readdirSync(dir,{withFileTypes:true}); } catch { return; } for (const ent of ents){ const p=path.join(dir,ent.name); if (ent.isDirectory()) walk(p); else if (ent.name === '.DS_Store') { try { fs.rmSync(p,{force:true}); } catch {} } } } walk('.')\"",
+    "clean": "node -e \"const fs=require('fs'); const path=require('path'); const targets=['dist','node_modules','src-tauri/target','.codex_audit','tsconfig.tsbuildinfo']; for (const t of targets) { try { fs.rmSync(t,{recursive:true,force:true}); } catch {} } function walk(dir){ let ents=[]; try { ents=fs.readdirSync(dir,{withFileTypes:true}); } catch { return; } for (const ent of ents){ const p=path.join(dir,ent.name); if (ent.isDirectory()) walk(p); else if (ent.name === '.DS_Store') { try { fs.rmSync(p,{force:true}); } catch {} } } } walk('.')\"",
     "preview": "vite preview",
     "tauri": "tauri"
   },
   "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
     "@tauri-apps/api": "^2.0.0",
-    "@tanstack/react-query": "^5.62.12"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
     "@types/react": "^19.0.6",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "~5.8.3",
-    "vite": "^6.0.11",
     "tailwindcss": "^4.1.0",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.50"
+    "typescript": "~5.8.3",
+    "vite": "^6.0.11"
   }
 }
