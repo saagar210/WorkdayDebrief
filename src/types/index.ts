@@ -1,6 +1,6 @@
 // TypeScript interfaces matching Rust structs (camelCase for Tauri serde)
 
-export interface Ticket {
+interface Ticket {
   id: string;
   title: string;
   status: string;
@@ -8,26 +8,22 @@ export interface Ticket {
   resolvedAt?: string;
 }
 
-export interface Meeting {
+interface Meeting {
   title: string;
   start: string;
   end: string;
   durationMinutes: number;
 }
 
-export enum SourceStatus {
-  Ok = 'Ok',
-  Failed = 'Failed',
-  NotConfigured = 'NotConfigured',
-}
+type SourceStatus = 'Ok' | 'Failed' | 'NotConfigured';
 
-export interface DataSourcesStatus {
+interface DataSourcesStatus {
   jira: SourceStatusDetail;
   calendar: SourceStatusDetail;
   toggl: SourceStatusDetail;
 }
 
-export interface SourceStatusDetail {
+interface SourceStatusDetail {
   status: SourceStatus;
   fetchedAt?: string;
   error?: string;
