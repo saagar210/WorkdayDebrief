@@ -312,7 +312,12 @@ export default function SettingsPanelV2() {
         } else if (config.deliveryType === 'slack' && config.config) {
           setSlackWebhookUrl(config.config.webhookUrl || '');
         } else if (config.deliveryType === 'file' && config.config) {
-          setFileDirectory(config.config.directory || '');
+          setFileDirectory(
+            config.config.directoryPath ||
+            config.config.directory ||
+            config.config.directory_path ||
+            ''
+          );
         }
       });
     } catch (error) {
@@ -392,7 +397,7 @@ export default function SettingsPanelV2() {
       } else if (deliveryType === 'slack') {
         config = { webhookUrl: slackWebhookUrl };
       } else if (deliveryType === 'file') {
-        config = { directory: fileDirectory };
+        config = { directoryPath: fileDirectory };
       }
 
       await invoke('save_delivery_config', {
@@ -432,16 +437,18 @@ export default function SettingsPanelV2() {
       } else if (deliveryType === 'slack') {
         config = { webhookUrl: slackWebhookUrl };
       } else if (deliveryType === 'file') {
-        config = { directory: fileDirectory };
+        config = { directoryPath: fileDirectory };
       }
+
+      const testConfig = deliveryType === 'email'
+        ? { type: 'email', ...config }
+        : deliveryType === 'slack'
+          ? { type: 'slack', ...config }
+          : { type: 'file', ...config };
 
       const result = await invoke<string>('test_delivery', {
         deliveryType,
-        config: {
-          deliveryType,
-          config,
-          isEnabled: true,
-        },
+        config: testConfig,
       });
 
       setToast({ type: 'success', message: result });

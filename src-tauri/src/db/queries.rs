@@ -122,9 +122,9 @@ pub async fn list_summary_metas(
     days_back: i32,
 ) -> Result<Vec<serde_json::Value>, sqlx::Error> {
     // Validate days_back to prevent SQL injection and invalid dates
-    if days_back < 0 || days_back > 3650 {
+    if !(0..=3650).contains(&days_back) {
         return Err(sqlx::Error::Decode(
-            format!("days_back must be between 0 and 3650, got {}", days_back).into()
+            format!("days_back must be between 0 and 3650, got {}", days_back).into(),
         ));
     }
     let date_param = format!("-{} days", days_back);
@@ -167,25 +167,4 @@ pub async fn list_summary_metas(
         .collect();
 
     Ok(metas)
-}
-
-/// Get yesterday's tomorrow_priorities (for the Tomorrow's Priorities widget)
-pub async fn get_yesterday_priorities(pool: &SqlitePool) -> Result<Option<String>, sqlx::Error> {
-    let row = sqlx::query(
-        r#"
-        SELECT tomorrow_priorities
-        FROM daily_summaries
-        WHERE summary_date = date('now', '-1 day')
-        "#,
-    )
-    .fetch_optional(pool)
-    .await?;
-
-    match row {
-        Some(r) => {
-            let tomorrow_priorities: String = r.get("tomorrow_priorities");
-            Ok(Some(tomorrow_priorities))
-        }
-        None => Ok(None),
-    }
 }

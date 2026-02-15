@@ -19,13 +19,6 @@ use tokio::sync::Mutex;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::default().build())
-        .plugin(
-            tauri_plugin_stronghold::Builder::new(|password| {
-                // Generate password from machine ID
-                password.into()
-            })
-            .build(),
-        )
         .setup(|app| {
             // Get app data directory
             let app_data_dir = app
@@ -47,7 +40,9 @@ pub fn run() {
                 handle.manage(scheduler_state.clone());
 
                 // Load settings and start scheduler if configured
-                if let Ok(settings) = load_and_start_scheduler(&handle, &pool, scheduler_state).await {
+                if let Ok(settings) =
+                    load_and_start_scheduler(&handle, &pool, scheduler_state).await
+                {
                     eprintln!("[Startup] Loaded settings, scheduler ready");
 
                     // Check for missed summary generation

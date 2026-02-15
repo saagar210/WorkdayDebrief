@@ -22,7 +22,6 @@ struct CalendarEvent {
 struct EventDateTime {
     #[serde(rename = "dateTime")]
     date_time: Option<String>,
-    date: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,14 +47,18 @@ pub async fn fetch_events_today(access_token: &str) -> Result<Vec<Meeting>, AppE
         .ok_or_else(|| AppError::CalendarError("Cannot create start of day timestamp".to_string()))?
         .and_local_timezone(Local)
         .earliest()
-        .ok_or_else(|| AppError::CalendarError("Cannot convert start of day to local timezone".to_string()))?
+        .ok_or_else(|| {
+            AppError::CalendarError("Cannot convert start of day to local timezone".to_string())
+        })?
         .to_rfc3339();
     let end_of_day = today
         .and_hms_opt(23, 59, 59)
         .ok_or_else(|| AppError::CalendarError("Cannot create end of day timestamp".to_string()))?
         .and_local_timezone(Local)
         .earliest()
-        .ok_or_else(|| AppError::CalendarError("Cannot convert end of day to local timezone".to_string()))?
+        .ok_or_else(|| {
+            AppError::CalendarError("Cannot convert end of day to local timezone".to_string())
+        })?
         .to_rfc3339();
 
     let url = format!(
@@ -74,7 +77,9 @@ pub async fn fetch_events_today(access_token: &str) -> Result<Vec<Meeting>, AppE
             if e.is_timeout() {
                 AppError::NetworkTimeout("Google Calendar request timed out".to_string())
             } else if e.is_connect() {
-                AppError::CalendarError("Cannot reach Google Calendar API. Check your internet connection.".to_string())
+                AppError::CalendarError(
+                    "Cannot reach Google Calendar API. Check your internet connection.".to_string(),
+                )
             } else {
                 AppError::CalendarError(format!("Request failed: {}", e))
             }
@@ -115,12 +120,14 @@ pub async fn fetch_events_today(access_token: &str) -> Result<Vec<Meeting>, AppE
             }
         }
 
-        let start = event.start.date_time.ok_or_else(|| {
-            AppError::CalendarError("Event missing start dateTime".to_string())
-        })?;
-        let end = event.end.date_time.ok_or_else(|| {
-            AppError::CalendarError("Event missing end dateTime".to_string())
-        })?;
+        let start = event
+            .start
+            .date_time
+            .ok_or_else(|| AppError::CalendarError("Event missing start dateTime".to_string()))?;
+        let end = event
+            .end
+            .date_time
+            .ok_or_else(|| AppError::CalendarError("Event missing end dateTime".to_string()))?;
 
         // Calculate duration
         let start_dt = chrono::DateTime::parse_from_rfc3339(&start).ok();
