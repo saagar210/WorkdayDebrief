@@ -29,6 +29,24 @@ npm ci
 npm run tauri dev
 ```
 
+## Dev modes
+
+### Normal dev (fastest rebuilds, more local disk usage)
+
+```bash
+npm run tauri dev
+```
+
+This keeps Rust and Vite build caches in the repo (`src-tauri/target`, `node_modules/.vite`) for faster restart and incremental compile times.
+
+### Lean dev (lower disk usage, slower cold starts)
+
+```bash
+npm run dev:lean
+```
+
+`dev:lean` runs the same Tauri dev flow, but redirects heavy build caches to a temporary directory and removes heavy generated artifacts when the app exits.
+
 ## Build
 
 ```bash
@@ -41,10 +59,13 @@ npm run tauri build
 From `package.json`:
 
 - `npm run dev`: start Vite frontend
+- `npm run dev:lean`: run Tauri dev with temporary cache locations and auto-clean heavy artifacts on exit
 - `npm run build`: type-check and build frontend assets
 - `npm run preview`: preview built frontend
 - `npm run tauri`: run Tauri CLI
-- `npm run clean`: remove generated local artifacts (`dist`, `node_modules`, `src-tauri/target`, and cache files)
+- `npm run clean:heavy`: remove heavy build artifacts only (`dist`, `src-tauri/target`, `src-tauri/gen`, Vite caches, and TS build info)
+- `npm run clean:full`: remove all reproducible local caches (includes `node_modules` plus heavy artifacts)
+- `npm run clean`: alias for `npm run clean:full`
 
 ## Project layout
 
